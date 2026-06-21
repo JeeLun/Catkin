@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>■ 世界观阅读器 | NEXUS ARCHIVE</title>
+    <style>
+        :root {
+            --cyan: #65ebf6; --pink: #e08282; --green: #85ea8e; --white: #ffffff;
+            --black: #061116; --cyan-dim: #3a8f99; --cyan-dark: #1a4a50;
+            --cyan-glow: rgba(101, 235, 246, 0.25);
+            --grid-color: rgba(101, 235, 246, 0.035);
+            --scanline-color: rgba(101, 235, 246, 0.01);
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html, body {
+            width:100%; height:100%; background:var(--black);
+            font-family:'Courier New', 'Consolas', 'DejaVu Sans Mono', monospace;
+            color:var(--white); overflow:hidden; cursor:crosshair;
+            user-select:none; -webkit-user-select:none; letter-spacing:0.02em;
+        }
+        body::before {
+            content:''; position:fixed; top:0; left:0; width:100%; height:100%;
+            pointer-events:none; z-index:0;
+            background-image:
+                linear-gradient(var(--grid-color) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+            background-size:8px 8px;
+        }
+        body::after {
+            content:''; position:fixed; top:0; left:0; width:100%; height:100%;
+            pointer-events:none; z-index:1;
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, var(--scanline-color) 2px, var(--scanline-color) 4px);
+            animation: scanlineMove 8s linear infinite;
+        }
+        @keyframes scanlineMove { 0%{background-position:0 0;} 100%{background-position:0 100px;} }
+
+        .main-container {
+            position:relative; z-index:10; width:100%; height:100%;
+            display:flex; flex-direction:column; padding:12px; gap:8px;
+        }
+        .header {
+            display:flex; align-items:center; justify-content:space-between;
+            border:2px solid var(--cyan); padding:8px 18px; background:var(--black);
+            position:relative; flex-shrink:0; min-height:46px;
+            box-shadow:3px 3px 0px 0px rgba(101,235,246,0.2), inset -1px -1px 0px 0px rgba(101,235,246,0.06);
+        }
+        .header::before { content:''; position:absolute; top:-2px; left:-2px; width:8px; height:8px; background:var(--cyan); box-shadow:0 0 6px var(--cyan); }
+        .header::after { content:''; position:absolute; bottom:-2px; right:-2px; width:8px; height:8px; background:var(--cyan); box-shadow:0 0 6px var(--cyan); }
+        .header-title {
+            font-size:0.9rem; font-weight:bold; color:var(--cyan); letter-spacing:0.06em;
+            text-transform:uppercase; display:flex; align-items:center; gap:8px;
+        }
+        .header-title .bracket { color:var(--pink); font-size:1.1rem; }
+        .header-title .dot { display:inline-block; width:5px; height:5px; background:var(--green); margin:0 1px; animation:dotPulse 1.5s step-end infinite; }
+        .header-title .dot:nth-child(2){ animation-delay:0.3s; } .header-title .dot:nth-child(3){ animation-delay:0.6s; }
+        @keyframes dotPulse { 0%,100%{opacity:1;box-shadow:0 0 4px var(--green);} 50%{opacity:0.2;box-shadow:0 0 1px var(--green);} }
+        .header-status { display:flex; align-items:center; gap:10px; font-size:0.6rem; color:var(--cyan-dim); letter-spacing:0.05em; }
+        .header-status .status-block { width:7px; height:7px; border:2px solid var(--cyan); background:transparent; transition:background 0.15s step-end; }
+        .header-status .status-block.active { background:var(--green); border-color:var(--green); box-shadow:0 0 7px var(--green); }
+        #clockDisplay { color:var(--cyan); font-size:0.65rem; letter-spacing:0.06em; }
+
+        .content-area { flex:1; display:flex; align-items:center; justify-content:center; gap:32px; padding:20px; position:relative; z-index:10; }
+        .control-card {
+            display:flex; flex-direction:column; align-items:center; justify-content:center;
+            width:200px; height:260px; border:2px solid var(--cyan); background:var(--black);
+            position:relative; cursor:pointer; transition:0.1s step-end; gap:12px; color:var(--white);
+            box-shadow:4px 4px 0px 0px rgba(101,235,246,0.25), inset -1px -1px 0px 0px rgba(101,235,246,0.05);
+        }
+        .control-card:hover { border-color:var(--green); box-shadow:4px 4px 0px 0px rgba(133,234,142,0.35), inset 0px 0px 30px 0px rgba(133,234,142,0.06); transform:translate(-1px,-1px); }
+        .control-card:active { transform:translate(1px,1px); box-shadow:1px 1px 0px 0px rgba(101,235,246,0.15); }
+        .control-card::before { content:''; position:absolute; top:-2px; left:-2px; width:8px; height:8px; background:var(--cyan); box-shadow:0 0 6px var(--cyan); }
+        .control-card::after { content:''; position:absolute; bottom:-2px; right:-2px; width:8px; height:8px; background:var(--cyan); box-shadow:0 0 6px var(--cyan); }
+        .control-card:hover::before,.control-card:hover::after { background:var(--green); box-shadow:0 0 10px var(--green); }
+        .card-icon-grid { display:grid; gap:3px; pointer-events:none; }
+        .icon-timeline { grid-template-columns: repeat(5,8px); grid-template-rows: repeat(5,8px); }
+        .icon-story { grid-template-columns: repeat(6,8px); grid-template-rows: repeat(4,8px); }
+        .icon-help { grid-template-columns: repeat(4,9px); grid-template-rows: repeat(4,9px); }
+        .sq { width:100%; height:100%; background:transparent; border:1px solid var(--cyan-dim); transition:0.15s step-end; }
+        .sq.filled { background:var(--cyan); border-color:var(--cyan); box-shadow:0 0 4px var(--cyan); }
+        .sq.pink { background:var(--pink); border-color:var(--pink); box-shadow:0 0 4px var(--pink); }
+        .sq.green { background:var(--green); border-color:var(--green); box-shadow:0 0 4px var(--green); }
+        .sq.white { background:var(--white); border-color:var(--white); box-shadow:0 0 4px var(--white); }
+        .sq.dim { background:var(--cyan-dim); border-color:var(--cyan-dim); }
+        .control-card:hover .sq.filled { background:var(--green); border-color:var(--green); box-shadow:0 0 6px var(--green); }
+        .card-label { font-size:0.75rem; font-weight:bold; color:var(--cyan); letter-spacing:0.08em; text-transform:uppercase; pointer-events:none; text-align:center; line-height:1.4; }
+        .card-sub { font-size:0.5rem; color:var(--cyan-dim); letter-spacing:0.05em; pointer-events:none; text-align:center; opacity:0.7; }
+
+        .pixel-overlay { position:fixed; top:0; left:0; width:100%; height:100%; z-index:9999; pointer-events:none; display:none; }
+        .pixel-canvas { display:block; width:100%; height:100%; }
+        .page { display:none; position:absolute; top:0; left:0; width:100%; height:100%; z-index:5; flex-direction:column; padding:12px; gap:8px; }
+        .page.active { display:flex; }
+        .btn-back {
+            font-family:'Courier New', monospace; font-size:0.6rem; letter-spacing:0.06em;
+            background:transparent; color:var(--cyan); border:2px solid var(--cyan);
+            padding:6px 14px; cursor:pointer; white-space:nowrap; transition:0.1s step-end;
+            align-self:flex-start; margin-top:4px;
+        }
+        .btn-back:hover { background:var(--cyan); color:var(--black); box-shadow:0 0 10px var(--cyan-glow); }
+        .page-content { flex:1; border:2px solid var(--cyan); background:var(--black); padding:20px; position:relative; display:flex; align-items:stretch; }
+
+        #timelineCanvas { width:100%; height:100%; display:block; }
+        #detailModal { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(6,17,22,0.9); z-index:10000; display:none; flex-direction:column; align-items:center; justify-content:center; }
+        #detailModal .detail-box { background:var(--black); border:2px solid var(--cyan); padding:20px; max-width:600px; width:90%; max-height:80vh; overflow-y:auto; color:var(--white); font-family:inherit; position:relative; }
+        #detailModal .detail-box .close-btn { position:absolute; top:8px; right:12px; cursor:pointer; color:var(--pink); font-size:1.2rem; line-height:1; }
+        @media (max-width:768px) { .content-area{flex-direction:column;gap:16px;} .control-card{width:160px;height:180px;} }
+    </style>
+</head>
+<body>
+    <div class="pixel-overlay" id="pixelOverlay"><canvas class="pixel-canvas" id="pixelCanvas"></canvas></div>
+
+    <div class="main-container page active" id="mainPage">
+        <header class="header">
+            <div class="header-title"><span class="bracket">[</span> NEXUS ARCHIVE <span class="dot"></span><span class="dot"></span><span class="dot"></span> <span class="bracket">]</span></div>
+            <div class="header-status"><span>SYS</span><span class="status-block active" id="statusSys"></span><span>|</span><span>NODE</span><span class="status-block" id="statusNode"></span><span>|</span><span id="clockDisplay">00:00:00</span></div>
+        </header>
+        <div class="content-area">
+            <div class="control-card" data-target="timelinePage">
+                <div class="card-icon-grid icon-timeline">
+                    <span class="sq filled"></span><span class="sq"></span><span class="sq filled"></span><span class="sq"></span><span class="sq filled"></span>
+                    <span class="sq dim"></span><span class="sq filled"></span><span class="sq dim"></span><span class="sq filled"></span><span class="sq dim"></span>
+                    <span class="sq"></span><span class="sq pink"></span><span class="sq"></span><span class="sq green"></span><span class="sq"></span>
+                    <span class="sq dim"></span><span class="sq filled"></span><span class="sq dim"></span><span class="sq filled"></span><span class="sq dim"></span>
+                    <span class="sq filled"></span><span class="sq"></span><span class="sq white"></span><span class="sq"></span><span class="sq filled"></span>
+                </div><div class="card-label">时 间 线</div><div class="card-sub">TIMELINE</div>
+            </div>
+            <div class="control-card" data-target="storyPage">
+                <div class="card-icon-grid icon-story">
+                    <span class="sq filled"></span><span class="sq"></span><span class="sq filled"></span><span class="sq pink"></span><span class="sq"></span><span class="sq filled"></span>
+                    <span class="sq dim"></span><span class="sq filled"></span><span class="sq"></span><span class="sq filled"></span><span class="sq green"></span><span class="sq dim"></span>
+                    <span class="sq"></span><span class="sq green"></span><span class="sq filled"></span><span class="sq"></span><span class="sq filled"></span><span class="sq"></span>
+                    <span class="sq filled"></span><span class="sq"></span><span class="sq white"></span><span class="sq filled"></span><span class="sq"></span><span class="sq pink"></span>
+                </div><div class="card-label">故 事 线</div><div class="card-sub">STORYLINE</div>
+            </div>
+            <div class="control-card" data-target="helpPage">
+                <div class="card-icon-grid icon-help">
+                    <span class="sq filled"></span><span class="sq"></span><span class="sq filled"></span><span class="sq"></span>
+                    <span class="sq dim"></span><span class="sq white"></span><span class="sq dim"></span><span class="sq filled"></span>
+                    <span class="sq"></span><span class="sq pink"></span><span class="sq green"></span><span class="sq"></span>
+                    <span class="sq filled"></span><span class="sq"></span><span class="sq filled"></span><span class="sq white"></span>
+                </div><div class="card-label">帮 助</div><div class="card-sub">HELP</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="page" id="timelinePage">
+        <button class="btn-back" data-target="mainPage">[ 返回主界面 ]</button>
+        <div class="page-content" id="timelineContent">
+            <canvas id="timelineCanvas"></canvas>
+        </div>
+    </div>
+
+    <div class="page" id="storyPage">
+        <button class="btn-back" data-target="mainPage">[ 返回主界面 ]</button>
+        <div class="page-content"><div class="placeholder-text">■ 故事线界面<br><span style="font-size:0.55rem;opacity:0.6;">（即将开放）</span></div></div>
+    </div>
+    <div class="page" id="helpPage">
+        <button class="btn-back" data-target="mainPage">[ 返回主界面 ]</button>
+        <div class="page-content"><div class="placeholder-text">■ 帮助界面<br><span style="font-size:0.55rem;opacity:0.6;">（即将开放）</span></div></div>
+    </div>
+    <div id="detailModal"><div class="detail-box"><span class="close-btn" id="closeDetail">✕</span><div id="detailContent"></div></div></div>
+
+    <script>
+    (() => {
+        const statusSys = document.getElementById('statusSys');
+        const statusNode = document.getElementById('statusNode');
+        const clockDisplay = document.getElementById('clockDisplay');
+        const pixelOverlay = document.getElementById('pixelOverlay');
+        const pixelCanvas = document.getElementById('pixelCanvas');
+        const ctx = pixelCanvas.getContext('2d');
+        const pages = {
+            mainPage: document.getElementById('mainPage'),
+            timelinePage: document.getElementById('timelinePage'),
+            storyPage: document.getElementById('storyPage'),
+            helpPage: document.getElementById('helpPage'),
+        };
+        let currentPageId = 'mainPage';
+        let isAnimating = false;
+        const SCAN_SPEED = 96;
+        const SCAN_LINE_WIDTH = 28;
+
+        function updateClock() {
+            const d = new Date();
+            clockDisplay.textContent = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+        }
+        setInterval(updateClock, 1000); updateClock();
+        statusSys.classList.add('active');
+
+        function resizeOverlayCanvas() { pixelCanvas.width = window.innerWidth; pixelCanvas.height = window.innerHeight; }
+        window.addEventListener('resize', resizeOverlayCanvas); resizeOverlayCanvas();
+
+        function drawFrame(scanX) {
+            ctx.clearRect(0,0,pixelCanvas.width,pixelCanvas.height);
+            const W = pixelCanvas.width, H = pixelCanvas.height;
+            if (scanX > 0) { ctx.fillStyle = '#061116'; ctx.fillRect(0,0,scanX,H); }
+            if (scanX >=0 && scanX <= W) {
+                const g = ctx.createLinearGradient(scanX - SCAN_LINE_WIDTH/2, 0, scanX + SCAN_LINE_WIDTH/2, 0);
+                g.addColorStop(0,'rgba(101,235,246,0)'); g.addColorStop(0.25,'rgba(101,235,246,0.6)');
+                g.addColorStop(0.5,'#65ebf6'); g.addColorStop(0.55,'#ffffff');
+                g.addColorStop(0.6,'#65ebf6'); g.addColorStop(0.75,'rgba(101,235,246,0.6)');
+                g.addColorStop(1,'rgba(101,235,246,0)');
+                ctx.fillStyle = g; ctx.fillRect(scanX-SCAN_LINE_WIDTH/2, 0, SCAN_LINE_WIDTH, H);
+            }
+        }
+        function animateClose() {
+            return new Promise(resolve => {
+                const W = pixelCanvas.width; let scanX = 0;
+                function step() { scanX += SCAN_SPEED; if(scanX>=W){ scanX=W; drawFrame(scanX); resolve(); return; } drawFrame(scanX); requestAnimationFrame(step); }
+                step();
+            });
+        }
+        function animateOpen() {
+            return new Promise(resolve => {
+                const W = pixelCanvas.width; let scanX = W;
+                function step() { scanX -= SCAN_SPEED; if(scanX<=0){ scanX=0; drawFrame(scanX); resolve(); return; } drawFrame(scanX); requestAnimationFrame(step); }
+                step();
+            });
+        }
+
+        async function switchPage(targetPageId) {
+            if (isAnimating) return; if (targetPageId === currentPageId) return;
+            isAnimating = true; const old = currentPageId;
+            pixelOverlay.style.display = 'block'; drawFrame(0);
+            await animateClose();
+            await new Promise(r => setTimeout(r, 200));
+            pages[old].classList.remove('active'); pages[targetPageId].classList.add('active');
+            currentPageId = targetPageId;
+            if (currentPageId === 'timelinePage') {
+                initTimelineCanvas();
+                loadTimelineResources();
+            }
+            statusNode.classList.toggle('active', currentPageId !== 'mainPage');
+            await new Promise(r => setTimeout(r, 50));
+            await animateOpen();
+            pixelOverlay.style.display = 'none'; ctx.clearRect(0,0,pixelCanvas.width,pixelCanvas.height);
+            isAnimating = false;
+        }
+
+        document.querySelectorAll('.control-card').forEach(c => c.addEventListener('click', () => {
+            try { new Audio('sound/click.wav').play(); } catch(e){} 
+            const t = c.dataset.target; if(t) switchPage(t);
+        }));
+        document.querySelectorAll('.btn-back').forEach(b => b.addEventListener('click', () => {
+            try { new Audio('sound/click.wav').play(); } catch(e){} 
+            const t = b.dataset.target; if(t) switchPage(t);
+        }));
+        document.addEventListener('keydown', e => {
+            if(isAnimating) return;
+            if(e.key==='1') switchPage('timelinePage');
+            if(e.key==='2') switchPage('storyPage');
+            if(e.key==='3') switchPage('helpPage');
+            if(e.key==='0'||e.key==='Escape') switchPage('mainPage');
+        });
+
+        // ============ 时间线核心 ============
+        const canvas = document.getElementById('timelineCanvas');
+        const ctxTL = canvas.getContext('2d');
+        const contentDiv = document.getElementById('timelineContent');
+        let tlWidth, tlHeight;
+        const EVENT_BOX_W = 150, EVENT_BOX_H = 112;
+        const IMG_H_RATIO = 9/12; 
+        const TITLE_H_RATIO = 3/12;
+        const YEAR_START = -5000, YEAR_END = 2150;
+        let viewStartYear = YEAR_START, viewEndYear = YEAR_END;
+        let events = [];
+        let loadedImages = new Map();
+        const detailModal = document.getElementById('detailModal');
+        const detailContent = document.getElementById('detailContent');
+        document.getElementById('closeDetail').addEventListener('click', ()=> detailModal.style.display = 'none');
+        function parseDateFromString(dateStr) {
+            // 去除可能的前后空格
+            dateStr = dateStr.trim();
+            let year = 0, month = 0, day = 0;
+            // 分离负号
+            let parts = dateStr.split('.');
+            if (parts[0].startsWith('-')) {
+                year = -parseInt(parts[0].substring(1));
+            } else {
+                year = parseInt(parts[0]);
+            }
+            month = parts.length >= 2 ? parseInt(parts[1]) - 1 : 0;
+            day = parts.length >= 3 ? parseInt(parts[2]) : 0;
+            return { year, month, day };
+        }
+        // 其余函数 (dateToDecimal, isLeapYear, daysInMonth) 保持不变...
+
+        function dateToDecimal(date) {
+            let daysInYear = isLeapYear(date.year) ? 366 : 365;
+            let days = 0;
+            for(let m=1; m<=12; m++) {
+                let dim = daysInMonth(date.year, m);
+                if(m < (date.month+1)) days += dim;
+                else break;
+            }
+            days += date.day;
+            return date.year + days / daysInYear;
+        }
+
+        function isLeapYear(y) {
+            const absY = Math.abs(y);
+            return (absY%4===0 && absY%100!==0) || (absY%400===0);
+        }
+        function daysInMonth(y, m) {
+            if(m===2) return isLeapYear(y) ? 29 : 28;
+            return [31,28,31,30,31,30,31,31,30,31,30,31][m-1];
+        }
+
+        function initTimelineCanvas() {
+            canvas.width = contentDiv.clientWidth;
+            canvas.height = contentDiv.clientHeight;
+            tlWidth = canvas.width;
+            tlHeight = canvas.height;
+            viewStartYear = YEAR_START;
+            viewEndYear = YEAR_END;
+            drawTimeline();
+        }
+
+        function drawTimeline() {
+            ctxTL.clearRect(0,0,tlWidth,tlHeight);
+            const midY = tlHeight * 0.55;
+            const span = viewEndYear - viewStartYear;
+            const yearToX = y => ((y - viewStartYear) / span) * tlWidth;
+            const MIN_PIXEL_GAP = 55;
+
+            // 主时间轴
+            ctxTL.strokeStyle = '#65ebf6'; ctxTL.lineWidth = 2;
+            ctxTL.beginPath(); ctxTL.moveTo(0,midY); ctxTL.lineTo(tlWidth,midY); ctxTL.stroke();
+
+            // 刻度层级控制
+            const showYears = span >= 1;
+            const showMonths = span <= 5;
+            const showDays = span <= 1.5;
+            const yearFontSize = Math.min(40, Math.max(14, tlWidth/70));
+            const monthFontSize = Math.min(24, Math.max(10, tlWidth/100));
+            const dayFontSize = Math.min(12, Math.max(7, tlWidth/150));
+
+            ctxTL.textAlign = 'center';
+            ctxTL.fillStyle = '#65ebf6';
+
+            // 绘制年份标签
+            if (showYears) {
+                let step = 1;
+                if (span > 200) step = 100;
+                else if (span > 100) step = 50;
+                else if (span > 50) step = 10;
+                else if (span > 10) step = 5;
+                else step = 1;
+
+                ctxTL.font = `${yearFontSize}px 'Courier New'`;
+                for (let y = Math.ceil(viewStartYear/step)*step; y <= viewEndYear; y += step) {
+                    let x = yearToX(y);
+                    if (x < -30 || x > tlWidth+30) continue;
+                    let label = y < 0 ? `BC${Math.abs(y)}` : y.toString();
+                    ctxTL.fillText(label, x, midY + yearFontSize + 10);
+                    ctxTL.beginPath(); ctxTL.moveTo(x, midY-6); ctxTL.lineTo(x, midY+6); ctxTL.stroke();
+                }
+            }
+
+            // 绘制月份标记
+            if (showMonths) {
+                ctxTL.font = `${monthFontSize}px 'Courier New'`;
+                for (let y = Math.floor(viewStartYear)-1; y <= Math.ceil(viewEndYear)+1; y++) {
+                    for (let m=1; m<=12; m++) {
+                        let monthDec = y + (m-1)/12;
+                        let mx = yearToX(monthDec);
+                        if (mx < -10 || mx > tlWidth+10) continue;
+                        ctxTL.beginPath(); ctxTL.moveTo(mx, midY-4); ctxTL.lineTo(mx, midY+4); ctxTL.stroke();
+                        ctxTL.fillText(m, mx, midY + monthFontSize + 4);
+                    }
+                }
+            }
+
+            // 绘制日刻度
+            if (showDays) {
+                ctxTL.font = `${dayFontSize}px 'Courier New'`;
+                for (let y = Math.floor(viewStartYear)-1; y <= Math.ceil(viewEndYear)+1; y++) {
+                    let isLeap = isLeapYear(y);
+                    for (let m=1; m<=12; m++) {
+                        let dim = daysInMonth(y, m);
+                        for (let d=1; d<=dim; d++) {
+                            let dayDec = y + (m-1)/12 + (d-0.5)/(12*dim);
+                            let dx = yearToX(dayDec);
+                            if (dx < -5 || dx > tlWidth+5) continue;
+                            ctxTL.beginPath(); ctxTL.moveTo(dx, midY-2); ctxTL.lineTo(dx, midY+2); ctxTL.strokeStyle = 'rgba(101,235,246,0.6)'; ctxTL.stroke();
+                            // 如果间距足够则显示数字
+                            if (d === 1 || d === dim || (dx - yearToX(y + (m-1)/12 + (d-2)/(12*dim)) > 25)) {
+                                ctxTL.fillText(d, dx, midY + dayFontSize + 2);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 绘制事件控件
+            const nowSpan = span;
+            const visibleEvents = events.filter(ev => {
+                const dec = dateToDecimal(ev);
+                if (dec < viewStartYear || dec > viewEndYear) return false;
+                if (!ev.tag) return true;
+                if (ev.tag === 'global' && nowSpan <= 50) return true;
+                if (ev.tag === 'regional' && nowSpan <= 10) return true;
+                if (ev.tag === 'local' && nowSpan <= 1) return true;
+                return false;
+            });
+            visibleEvents.forEach(ev => {
+                const dec = dateToDecimal(ev);
+                const x = yearToX(dec);
+                const yTop = midY - 130;
+                const boxW = EVENT_BOX_W, boxH = EVENT_BOX_H;
+                ctxTL.fillStyle = '#061116'; ctxTL.strokeStyle = '#65ebf6'; ctxTL.lineWidth = 1;
+                ctxTL.fillRect(x-boxW/2, yTop, boxW, boxH);
+                ctxTL.strokeRect(x-boxW/2, yTop, boxW, boxH);
+                let imgY = yTop, imgH = boxH * IMG_H_RATIO;
+                if (loadedImages.has(ev.picture)) {
+                    ctxTL.drawImage(loadedImages.get(ev.picture), x-boxW/2+2, imgY+2, boxW-4, imgH-4);
+                } else {
+                    ctxTL.fillStyle = '#1a3a40'; ctxTL.fillRect(x-boxW/2+2, imgY+2, boxW-4, imgH-4);
+                }
+                let titleY = yTop + imgH;
+                ctxTL.fillStyle = '#65ebf6'; ctxTL.font = `${Math.min(12, tlWidth/90)}px 'Courier New'`; ctxTL.textAlign = 'center';
+                ctxTL.fillText(ev.title, x, titleY + (boxH - imgH)/2 + 5);
+                ev._x = x; ev._y = yTop; ev._w = boxW; ev._h = boxH;
+            });
+        }
+
+        canvas.addEventListener('click', e => {
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+            const clicked = events.find(ev => {
+                if (!ev._x) return false;
+                return mx >= ev._x - ev._w/2 && mx <= ev._x + ev._w/2 && my >= ev._y && my <= ev._y + ev._h;
+            });
+            if (clicked) {
+                detailContent.innerHTML = `<h3 style='color:#65ebf6'>${clicked.title}</h3><p>${clicked.text.replace(/\n/g,'<br>')}</p>`;
+                detailModal.style.display = 'flex';
+            }
+        });
+
+        canvas.addEventListener('wheel', e => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const yearAtCursor = viewStartYear + (mx / tlWidth) * (viewEndYear - viewStartYear);
+            let factor = e.deltaY < 0 ? 0.8 : 1.25;
+            let newSpan = (viewEndYear - viewStartYear) * factor;
+            newSpan = Math.max(1/12, Math.min(1000, newSpan));
+            viewStartYear = yearAtCursor - newSpan * (mx / tlWidth);
+            viewEndYear = viewStartYear + newSpan;
+            if (viewStartYear < YEAR_START) { viewStartYear = YEAR_START; viewEndYear = viewStartYear + newSpan; }
+            if (viewEndYear > YEAR_END) { viewEndYear = YEAR_END; viewStartYear = viewEndYear - newSpan; }
+            drawTimeline();
+        });
+
+        let isDragging = false, lastX = 0;
+        canvas.addEventListener('mousedown', e => { isDragging = true; lastX = e.clientX; });
+        canvas.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+            const dx = e.clientX - lastX;
+            lastX = e.clientX;
+            const span = viewEndYear - viewStartYear;
+            const shift = (dx / tlWidth) * span;
+            viewStartYear -= shift; viewEndYear -= shift;
+            if (viewStartYear < YEAR_START) { viewStartYear = YEAR_START; viewEndYear = viewStartYear + span; }
+            if (viewEndYear > YEAR_END) { viewEndYear = YEAR_END; viewStartYear = viewEndYear - span; }
+            drawTimeline();
+        });
+        canvas.addEventListener('mouseup', () => isDragging = false);
+        window.addEventListener('mouseup', () => isDragging = false);
+
+        async function loadTimelineResources() {
+            // 1. 首先使用示例数据，保证一定有内容显示
+            useSampleEvents();
+            drawTimeline();
+
+            // 2. 尝试加载本地外部文件，成功则覆盖
+            try {
+                let text = '';
+                // 使用 fetch 尝试获取（在服务器环境下可成功；本地直接打开会失败则进入catch）
+                const response = await fetch('localisation/text.txt');
+                if (response.ok) {
+                    text = await response.text();
+                } else {
+                    throw new Error('Response not OK');
+                }
+                if (text) {
+                    parseEventsText(text);
+                    // 如果解析后没有任何事件，回退到示例数据
+                    if (events.length === 0) useSampleEvents();
+                }
+            } catch (e) {
+                console.log('外部文本加载失败，保持使用内置示例数据', e);
+                // 已经用示例数据，不需要额外操作
+            }
+
+            // 3. 加载图片（无论事件来源，都尝试加载）
+            const pictureNames = [...new Set(events.map(e => e.picture).filter(p => p))];
+            loadedImages.clear();
+            for (let pic of pictureNames) {
+                try {
+                    const img = new Image();
+                    img.src = `gfx/timeline_pictures/${pic}.png`;
+                    await new Promise((resolve, reject) => {
+                        img.onload = resolve;
+                        img.onerror = reject;
+                    });
+                    loadedImages.set(pic, img);
+                } catch (e) {
+                    console.warn(`图片 ${pic}.png 加载失败`, e);
+                }
+            }
+            drawTimeline();   // 重绘，确保图片显示
+        }
+
+        function parseEventsText(text) {
+            events = [];
+            // 按 event = { ... } 块拆分
+            const blocks = text.split(/event\s*=\s*\{/g).slice(1);
+            blocks.forEach(block => {
+                const endIndex = block.indexOf('}');
+                if (endIndex === -1) return;
+                const content = block.substring(0, endIndex);
+                // 提取引号内的值，允许冒号前后有空格、换行
+                const extract = (key) => {
+                    const regex = new RegExp(`${key}\\s*:\\s*"([^"]*)"`, 's');
+                    const match = content.match(regex);
+                    return match ? match[1] : '';
+                };
+                const timeStr = extract('time');
+                const picture = extract('picture');
+                const title = extract('title');
+                const textVal = extract('text');
+                const tag = extract('tag') || 'global';
+                if (!timeStr) return;
+                const dateObj = parseDateFromString(timeStr);
+                events.push({
+                    year: dateObj.year, month: dateObj.month, day: dateObj.day,
+                    tag, title, picture, text: textVal
+                });
+            });
+            // 没有解析到任何事件时，回退示例
+            if (events.length === 0) {
+                useSampleEvents();
+            }
+        }
+
+        function useSampleEvents() {
+            events = [
+                { year: -3000, month:0, day:0, tag:'global', title:'上古文明崛起', picture:'sample1', text:'多个原始文明在世界各地兴起。' },
+                { year: 1066, month:10, day:14, tag:'global', title:'黑斯廷斯战役', picture:'sample2', text:'诺曼底公爵威廉征服英格兰。' },
+                { year: 1776, month:7, day:4, tag:'global', title:'美国独立宣言', picture:'sample3', text:'北美十三州宣布独立。' },
+                { year: 1969, month:7, day:20, tag:'global', title:'人类登月', picture:'sample4', text:'阿波罗11号成功登陆月球。' },
+                { year: 2024, month:7, day:8, tag:'local', title:'夏日庆典', picture:'sample5', text:'本地社区举办了一场盛大的夏日庆典。' },
+                { year: 1453, month:5, day:29, tag:'regional', title:'君士坦丁堡陷落', picture:'sample6', text:'拜占庭帝国灭亡。' }
+            ];
+        }
+
+        window.addEventListener('resize', () => {
+            if (currentPageId === 'timelinePage') initTimelineCanvas();
+        });
+
+        initTimelineCanvas();
+    })();
+    </script>
+</body>
+</html>
