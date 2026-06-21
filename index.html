@@ -524,7 +524,7 @@
                 const picture = extract('picture');
                 const title = extract('title');
                 const textVal = extract('text');
-                const importanceStr = extract('importance') || '5';   // 默认5，中等
+                const importanceStr = extract('importance');   // 默认5，中等
                 if (!timeStr) return;
                 const dateObj = parseDateFromString(timeStr);
                 events.push({
