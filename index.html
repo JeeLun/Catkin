@@ -396,7 +396,7 @@
             const visibleEvents = events.filter(ev => {
                 const dec = dateToDecimal(ev);
                 if (dec < viewStartYear || dec > viewEndYear) return false;
-                // 重要性过滤：当前时间跨度小于等于事件 importance 值时显示
+                // 重要性过滤：当前时间跨度小于等于事件 importance 时显示
                 return nowSpan <= ev.importance;
             });
             visibleEvents.forEach(ev => {
@@ -515,21 +515,28 @@
                 const endIndex = block.indexOf('}');
                 if (endIndex === -1) return;
                 const content = block.substring(0, endIndex);
-                const extract = (key) => {
-                    const regex = new RegExp(`${key}\\s*:\\s*"([^"]*)"`, 's');
-                    const match = content.match(regex);
-                    return match ? match[1] : '';
+                // 通用提取：既能匹配 key:"value" 也能匹配 key:value（无引号）
+                const extract = (key, defaultValue) => {
+                    // 先尝试带引号的
+                    const regexQuoted = new RegExp(`${key}\\s*:\\s*"([^"]*)"`, 's');
+                    const matchQuoted = content.match(regexQuoted);
+                    if (matchQuoted) return matchQuoted[1];
+                    // 再尝试不带引号的（值到空格、逗号、换行或结尾）
+                    const regexUnquoted = new RegExp(`${key}\\s*:\\s*([^\\s,;}\n]*)`, 's');
+                    const matchUnquoted = content.match(regexUnquoted);
+                    if (matchUnquoted && matchUnquoted[1] !== undefined) return matchUnquoted[1];
+                    return defaultValue;
                 };
-                const timeStr = extract('time');
-                const picture = extract('picture');
-                const title = extract('title');
-                const textVal = extract('text');
-                const importanceStr = extract('importance');   // 默认5，中等
+                const timeStr = extract('time', '');
+                const picture = extract('picture', '');
+                const title = extract('title', '');
+                const textVal = extract('text', '');
+                const importanceStr = extract('importance', '5'); // 默认5
                 if (!timeStr) return;
                 const dateObj = parseDateFromString(timeStr);
                 events.push({
                     year: dateObj.year, month: dateObj.month, day: dateObj.day,
-                    importance: parseInt(importanceStr),     // 改为 importance
+                    importance: parseInt(importanceStr) || 5,
                     title, picture, text: textVal
                 });
             });
@@ -537,7 +544,7 @@
                 useSampleEvents();
             }
         }
-
+/*
         function useSampleEvents() {
             events = [
                 { year: -3000, month:0, day:0, tag:'global', title:'上古文明崛起', picture:'sample1', text:'多个原始文明在世界各地兴起。' },
@@ -548,7 +555,7 @@
                 { year: 1453, month:5, day:29, tag:'regional', title:'君士坦丁堡陷落', picture:'sample6', text:'拜占庭帝国灭亡。' }
             ];
         }
-
+*/
         window.addEventListener('resize', () => {
             if (currentPageId === 'timelinePage') initTimelineCanvas();
         });
