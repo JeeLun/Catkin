@@ -515,23 +515,16 @@
                 const endIndex = block.indexOf('}');
                 if (endIndex === -1) return;
                 const content = block.substring(0, endIndex);
-                // 通用提取：既能匹配 key:"value" 也能匹配 key:value（无引号）
                 const extract = (key, defaultValue) => {
-                    // 先尝试带引号的
-                    const regexQuoted = new RegExp(`${key}\\s*:\\s*"([^"]*)"`, 's');
-                    const matchQuoted = content.match(regexQuoted);
-                    if (matchQuoted) return matchQuoted[1];
-                    // 再尝试不带引号的（值到空格、逗号、换行或结尾）
-                    const regexUnquoted = new RegExp(`${key}\\s*:\\s*([^\\s,;}\n]*)`, 's');
-                    const matchUnquoted = content.match(regexUnquoted);
-                    if (matchUnquoted && matchUnquoted[1] !== undefined) return matchUnquoted[1];
-                    return defaultValue;
+                    const regex = new RegExp(`${key}\\s*:\\s*"([^"]*)"`, 's');
+                    const match = content.match(regex);
+                    return match ? match[1] : defaultValue;
                 };
                 const timeStr = extract('time', '');
                 const picture = extract('picture', '');
                 const title = extract('title', '');
                 const textVal = extract('text', '');
-                const importanceStr = extract('importance', '5'); // 默认5
+                const importanceStr = extract('importance', '5');
                 if (!timeStr) return;
                 const dateObj = parseDateFromString(timeStr);
                 events.push({
