@@ -396,11 +396,8 @@
             const visibleEvents = events.filter(ev => {
                 const dec = dateToDecimal(ev);
                 if (dec < viewStartYear || dec > viewEndYear) return false;
-                if (!ev.tag) return true;
-                if (ev.tag === 'global' && nowSpan <= 50) return true;
-                if (ev.tag === 'regional' && nowSpan <= 10) return true;
-                if (ev.tag === 'local' && nowSpan <= 1) return true;
-                return false;
+                // 重要性过滤：当前时间跨度小于等于事件 importance 值时显示
+                return nowSpan <= ev.importance;
             });
             visibleEvents.forEach(ev => {
                 const dec = dateToDecimal(ev);
@@ -513,13 +510,11 @@
 
         function parseEventsText(text) {
             events = [];
-            // 按 event = { ... } 块拆分
             const blocks = text.split(/event\s*=\s*\{/g).slice(1);
             blocks.forEach(block => {
                 const endIndex = block.indexOf('}');
                 if (endIndex === -1) return;
                 const content = block.substring(0, endIndex);
-                // 提取引号内的值，允许冒号前后有空格、换行
                 const extract = (key) => {
                     const regex = new RegExp(`${key}\\s*:\\s*"([^"]*)"`, 's');
                     const match = content.match(regex);
@@ -529,15 +524,15 @@
                 const picture = extract('picture');
                 const title = extract('title');
                 const textVal = extract('text');
-                const tag = extract('tag') || 'global';
+                const importanceStr = extract('importance') || '5';   // 默认5，中等
                 if (!timeStr) return;
                 const dateObj = parseDateFromString(timeStr);
                 events.push({
                     year: dateObj.year, month: dateObj.month, day: dateObj.day,
-                    tag, title, picture, text: textVal
+                    importance: parseInt(importanceStr),     // 改为 importance
+                    title, picture, text: textVal
                 });
             });
-            // 没有解析到任何事件时，回退示例
             if (events.length === 0) {
                 useSampleEvents();
             }
