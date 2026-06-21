@@ -397,7 +397,7 @@
                 const dec = dateToDecimal(ev);
                 if (dec < viewStartYear || dec > viewEndYear) return false;
                 if (!ev.tag) return true;
-                if (ev.tag === 'global' && nowSpan <= 50) return true;
+                if (ev.tag === 'global' && nowSpan <= 100) return true;
                 if (ev.tag === 'regional' && nowSpan <= 10) return true;
                 if (ev.tag === 'local' && nowSpan <= 1) return true;
                 return false;
