@@ -245,6 +245,15 @@
             const t = b.dataset.target; if(t) switchPage(t);
         }));
         document.addEventListener('keydown', e => {
+            // 优先处理模态框关闭
+            if (detailModal.style.display === 'flex') {
+                if (e.key === 'Escape') {
+                    detailModal.style.display = 'none';
+                    e.stopPropagation();
+                }
+                return; // 模态框打开时不响应其他快捷键
+            }
+            // ……原有页面切换判断保持不变……
             if(isAnimating) return;
             if(e.key==='1') switchPage('timelinePage');
             if(e.key==='2') switchPage('storyPage');
@@ -303,6 +312,11 @@
         function daysInMonth(y, m) {
             if(m===2) return isLeapYear(y) ? 29 : 28;
             return [31,28,31,30,31,30,31,31,30,31,30,31][m-1];
+        }
+
+        function getEventBoxY() {
+            const midY = tlHeight * 0.55;
+            return midY - 130; // 与 drawTimeline 中的 yTop 保持一致
         }
 
         function initTimelineCanvas() {
@@ -423,13 +437,30 @@
         canvas.addEventListener('click', e => {
             const rect = canvas.getBoundingClientRect();
             const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-            const clicked = events.find(ev => {
-                if (!ev._x) return false;
-                return mx >= ev._x - ev._w/2 && mx <= ev._x + ev._w/2 && my >= ev._y && my <= ev._y + ev._h;
+            const span = viewEndYear - viewStartYear;
+            const yearToX = y => ((y - viewStartYear) / span) * tlWidth;
+            const yTop = getEventBoxY();
+            const boxW = EVENT_BOX_W, boxH = EVENT_BOX_H;
+
+            // 实时过滤可见事件（与绘制时相同的逻辑）
+            const nowSpan = span;
+            const visibleEvents = events.filter(ev => {
+                const dec = dateToDecimal(ev);
+                if (dec < viewStartYear || dec > viewEndYear) return false;
+                return nowSpan <= ev.importance;
             });
-            if (clicked) {
-                detailContent.innerHTML = `<h3 style='color:#65ebf6'>${clicked.title}</h3><p>${clicked.text.replace(/\n/g,'<br>')}</p>`;
-                detailModal.style.display = 'flex';
+
+            for (const ev of visibleEvents) {
+                const dec = dateToDecimal(ev);
+                const x = yearToX(dec);
+                if (mx >= x - boxW/2 && mx <= x + boxW/2 && my >= yTop && my <= yTop + boxH) {
+                    // 播放音效
+                    try { new Audio('sound/click.wav').play(); } catch(e) {}
+                    // 显示详情
+                    detailContent.innerHTML = `<h3 style='color:#65ebf6'>${ev.title}</h3><p>${ev.text.replace(/\n/g,'<br>')}</p>`;
+                    detailModal.style.display = 'flex';
+                    return;
+                }
             }
         });
 
