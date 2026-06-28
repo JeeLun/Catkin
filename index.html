@@ -492,19 +492,22 @@
             // 3. 加载图片（无论事件来源，都尝试加载）
             const pictureNames = [...new Set(events.map(e => e.picture).filter(p => p))];
             loadedImages.clear();
-            for (let pic of pictureNames) {
-                try {
+            // 并行加载所有图片
+            const loadPromises = pictureNames.map(pic => {
+                return new Promise((resolve) => {
                     const img = new Image();
                     img.src = `gfx/timeline_pictures/${pic}.png`;
-                    await new Promise((resolve, reject) => {
-                        img.onload = resolve;
-                        img.onerror = reject;
-                    });
-                    loadedImages.set(pic, img);
-                } catch (e) {
-                    console.warn(`图片 ${pic}.png 加载失败`, e);
-                }
-            }
+                    img.onload = () => {
+                        loadedImages.set(pic, img);
+                        resolve();
+                    };
+                    img.onerror = () => {
+                        console.warn(`图片 ${pic}.png 加载失败`);
+                        resolve(); // 即使失败也继续
+                    };
+                });
+            });
+            await Promise.all(loadPromises);
             drawTimeline();   // 重绘，确保图片显示
         }
 
